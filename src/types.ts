@@ -13,12 +13,14 @@ export interface Habit {
   reminderEnabled: boolean;
   reminderTime: string | null;  // "HH:MM"
   createdAt: string;            // ISO timestamp
+  updatedAt: string;            // ISO timestamp, drives sync conflict resolution (last write wins)
   archived: boolean;
 }
 
 export interface State {
-  version: 1;
+  version: 2;
   habits: Habit[];
-  completions: Record<string, string[]>; // habitId -> ['2026-09-07', ...] local date keys
+  completions: Record<string, string[]>;                 // habitId -> ['2026-09-07', ...] local date keys
+  completionMeta: Record<string, Record<string, string>>; // habitId -> day -> updatedAt ISO (sync conflict resolution)
   onboarded: boolean;
 }

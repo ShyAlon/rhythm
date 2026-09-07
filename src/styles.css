@@ -388,3 +388,20 @@ input[type='time'] { color-scheme: dark; }
 .empty { text-align: center; color: var(--text-dim); padding: 48px 20px; }
 .empty-emoji { font-size: 38px; display: block; margin-bottom: 10px; }
 .empty p { font-size: 14.5px; line-height: 1.55; }
+
+/* Account / auth */
+.account-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 14px;
+}

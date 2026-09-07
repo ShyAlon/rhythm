@@ -1,5 +1,5 @@
 /* Rhythm service worker: offline-first app shell. */
-const CACHE = 'rhythm-v1';
+const CACHE = 'rhythm-v2';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -47,6 +47,36 @@ self.addEventListener('fetch', (e) => {
         })
         .catch(() => hit);
       return hit || net;
+    }),
+  );
+});
+
+
+/* Web Push: reminders from the server, even when the app is closed. */
+self.addEventListener('push', (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch { /* keep defaults */ }
+  const title = data.title || 'Rhythm';
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || 'Time to check in',
+      tag: data.tag,
+      icon: 'icons/icon-192.png',
+      badge: 'icons/icon-192.png',
+      data: { url: data.url || './' },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ('focus' in c) return c.focus();
+      }
+      return self.clients.openWindow(target);
     }),
   );
 });

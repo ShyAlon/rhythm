@@ -21,6 +21,7 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
       reminderEnabled: false,
       reminderTime: '09:00',
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       archived: false,
     },
   );
