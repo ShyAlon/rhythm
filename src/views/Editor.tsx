@@ -163,7 +163,7 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
 
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={!valid} onClick={save}>{isNew ? 'Add habit' : 'Save'}</button>
+          <button className="btn primary" disabled={!valid} onClick={save}>{isNew ? `Add ${draft.kind}` : 'Save'}</button>
         </div>
       </div>
     </div>
