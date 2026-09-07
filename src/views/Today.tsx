@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../store';
-import { currentStreak, dateKey, dueOn, isCompleted } from '../logic';
+import { currentStreak, dailyScore, dateKey, dueOn, isCompleted } from '../logic';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -34,6 +34,7 @@ export default function Today() {
   const key = dateKey(now);
   const list = useMemo(() => dueOn(state, now), [state]);
   const doneCount = list.filter((h) => isCompleted(state, h.id, key)).length;
+  const score = dailyScore(state, key);
   const allDone = list.length > 0 && doneCount === list.length;
 
   return (
@@ -42,6 +43,7 @@ export default function Today() {
         <div>
           <h1 className="today-date">{DAY_NAMES[now.getDay()]}</h1>
           <p className="today-sub">{MONTHS[now.getMonth()]} {now.getDate()}, {now.getFullYear()}</p>
+          <p className={`today-score ${score < 0 ? 'neg' : ''}`}>Score {score > 0 ? `+${score}` : score}</p>
         </div>
         <ProgressRing done={doneCount} total={list.length} />
       </header>
@@ -81,8 +83,9 @@ export default function Today() {
                 <div className="habit-text">
                   <span className="habit-name">{h.name}</span>
                   <span className="habit-meta">
-                    {h.targetTime ? `by ${h.targetTime}` : 'any time'}
+                    {h.kind !== 'habit' ? (h.kind === 'bonus' ? 'bonus' : 'penalty') : h.targetTime ? `by ${h.targetTime}` : 'any time'}
                     {h.reminderEnabled && h.reminderTime ? ` · 🔔 ${h.reminderTime}` : ''}
+                    {' ·'}<span className={`habit-weight ${h.weight < 0 ? 'neg' : ''}`}>{h.weight > 0 ? `+${h.weight}` : h.weight}</span>
                   </span>
                 </div>
               </div>

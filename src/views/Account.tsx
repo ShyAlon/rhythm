@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth';
-import { backendConfigured, supabase } from '../supabaseClient';
+import { backendConfigured, supabase, supabaseUrl } from '../supabaseClient';
 import { syncNow } from '../syncControl';
 import type { SyncStatus } from '../sync';
 import { disablePush, enablePush, getPushState } from '../push';
@@ -20,6 +20,7 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [push, setPush] = useState<PushState>('off');
 
   useEffect(() => {
@@ -44,10 +45,42 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
   const submit = async (mode: 'in' | 'up') => {
     setBusy(true);
     setError(null);
-    const err = mode === 'in' ? await signIn(email.trim(), password) : await signUp(email.trim(), password);
+    setInfo(null);
+    if (mode === 'in') {
+      const err = await signIn(email.trim(), password);
+      setBusy(false);
+      if (err) setError(err);
+      return;
+    }
+    const r = await signUp(email.trim(), password);
     setBusy(false);
-    if (err) setError(err);
-    else if (mode === 'up') toast('🎉 Account created', 'Your habits now sync to the cloud.');
+    if (r.error) setError(r.error);
+    else if (r.confirmationNeeded) setInfo('Account created. Check your email for the confirmation link, then come back and sign in.');
+    else toast('🎉 Account created', 'Your habits now sync to the cloud.');
+  };
+
+  const deleteAccount = async () => {
+    if (!supabase || !session) return;
+    if (!window.confirm('Delete your Rhythm account and wipe all cloud data? This cannot be undone. Data on this device stays.')) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setError(`Delete failed: ${(j as { error?: string }).error ?? r.status}`);
+        setBusy(false);
+        return;
+      }
+      await signOut();
+      toast('🗑️ Account deleted', 'Your cloud data was wiped. This device still has its local copy.');
+    } catch {
+      setError('Delete failed: network error');
+    }
+    setBusy(false);
   };
 
   if (!session) {
@@ -73,6 +106,7 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
             <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6+ characters" />
           </label>
           {error && <p className="form-error">{error}</p>}
+          {info && <p className="form-info">{info}</p>}
           <div className="settings-actions">
             <button className="btn primary" disabled={busy || loading || !email.includes('@') || password.length < 6} onClick={() => void submit('in')}>
               Sign in
@@ -149,6 +183,22 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
             <p className="settings-note">Your data stays on this device and in the cloud.</p>
           </div>
           <button className="btn ghost" onClick={() => void signOut()}>Sign out</button>
+        </div>
+
+        <div className="settings-row">
+          <div>
+            <strong>Privacy</strong>
+            <p className="settings-note">What Rhythm stores and where it goes.</p>
+          </div>
+          <a className="btn ghost" href="./privacy.html" target="_blank" rel="noreferrer">View</a>
+        </div>
+
+        <div className="settings-row">
+          <div>
+            <strong>Delete account</strong>
+            <p className="settings-note">Wipes your account and all cloud data permanently. The copy on this device stays.</p>
+          </div>
+          <button className="btn danger" disabled={busy} onClick={() => void deleteAccount()}>Delete</button>
         </div>
       </section>
     </div>

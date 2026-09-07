@@ -99,3 +99,59 @@ create table if not exists public.push_log (
 
 alter table public.push_log enable row level security;
 -- Intentionally no policies: only the service role (edge function) touches this table.
+
+-- ============ v3 additions (scoring, validation, in-DB scheduling, retention) ============
+-- Rhythm v3 migration: scoring fields, input validation, in-DB scheduling, retention
+alter table public.habits add column if not exists kind text not null default 'habit';
+alter table public.habits add column if not exists weight numeric not null default 1;
+
+alter table public.habits drop constraint if exists habits_kind_check;
+alter table public.habits add constraint habits_kind_check check (kind in ('habit','bonus','penalty'));
+alter table public.habits drop constraint if exists habits_weight_check;
+alter table public.habits add constraint habits_weight_check check (weight > -1000 and weight < 1000);
+alter table public.habits drop constraint if exists habits_name_len;
+alter table public.habits add constraint habits_name_len check (char_length(name) <= 200);
+alter table public.habits drop constraint if exists habits_notes_len;
+alter table public.habits add constraint habits_notes_len check (char_length(notes) <= 2000);
+alter table public.profiles drop constraint if exists profiles_tz_len;
+alter table public.profiles add constraint profiles_tz_len check (char_length(tz) <= 64);
+
+create or replace function public.valid_recurrence(r jsonb) returns boolean
+language plpgsql immutable as $fn$
+declare v text;
+begin
+  if r is null or jsonb_typeof(r) is distinct from 'object' or not (r ? 'kind') then return false; end if;
+  if r->>'kind' = 'daily' then return true; end if;
+  if r->>'kind' = 'weekly' then
+    if jsonb_typeof(r->'days') is distinct from 'array' then return false; end if;
+    for v in select jsonb_array_elements_text(r->'days') loop
+      if v !~ '^[0-6]$' then return false; end if;
+    end loop;
+    return true;
+  end if;
+  return false;
+exception when others then return false;
+end
+$fn$;
+
+alter table public.habits drop constraint if exists habits_recurrence_shape;
+alter table public.habits add constraint habits_recurrence_shape check (public.valid_recurrence(recurrence));
+
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+do $do$ begin perform cron.unschedule('rhythm-dispatch'); exception when others then null; end $do$;
+do $do$ begin perform cron.unschedule('rhythm-retention'); exception when others then null; end $do$;
+
+select cron.schedule('rhythm-dispatch', '*/5 * * * *', $job$select net.http_post(url := 'https://cwwyfmirxdtcfyovdfxt.supabase.co/functions/v1/dispatch', headers := '{"Content-Type":"application/json","x-dispatch-secret":"2ea91033ff5db2647c7a6037b39755e4e50572c82dacb845d63d3b87f172175e"}'::jsonb, body := '{}'::jsonb, timeout_milliseconds := 30000);$job$);
+
+create or replace function public.retention_cleanup() returns void
+language plpgsql security definer set search_path = '' as $fn$
+begin
+  delete from public.completions c where not exists (select 1 from public.habits h where h.id = c.habit_id);
+  delete from public.habits where deleted and updated_at < now() - interval '30 days';
+  delete from public.push_log where day < current_date - 30;
+end
+$fn$;
+
+select cron.schedule('rhythm-retention', '17 3 1 * *', $job$select public.retention_cleanup()$job$);

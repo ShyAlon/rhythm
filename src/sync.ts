@@ -33,6 +33,8 @@ function habitToRow(h: Habit, userId: string, deleted = false) {
   return {
     id: h.id,
     user_id: userId,
+    kind: h.kind,
+    weight: h.weight,
     name: h.name,
     emoji: h.emoji,
     color: h.color,
@@ -49,7 +51,7 @@ function habitToRow(h: Habit, userId: string, deleted = false) {
 }
 
 interface HabitRow {
-  id: string; name: string; emoji: string; color: string; notes: string | null;
+  id: string; kind: Habit['kind']; weight: number | null; name: string; emoji: string; color: string; notes: string | null;
   recurrence: Habit['recurrence']; target_time: string | null; reminder_enabled: boolean;
   reminder_time: string | null; archived: boolean; deleted: boolean;
   created_at: string; updated_at: string;
@@ -60,6 +62,8 @@ interface CompletionRow { habit_id: string; day: string; done: boolean; updated_
 function rowToHabit(r: HabitRow): Habit {
   return {
     id: r.id,
+    kind: r.kind ?? 'habit',
+    weight: r.weight ?? 1,
     name: r.name,
     emoji: r.emoji,
     color: r.color,
@@ -292,7 +296,7 @@ export function startSync(
           h
             ? habitToRow(h, userId, true)
             : {
-                id, user_id: userId, name: '', emoji: '✅', color: '#6c8cff', notes: '',
+                id, user_id: userId, kind: 'habit' as const, weight: 1, name: '', emoji: '✅', color: '#6c8cff', notes: '',
                 recurrence: { kind: 'daily' }, target_time: null, reminder_enabled: false,
                 reminder_time: null, archived: false, deleted: true, created_at: now, updated_at: now,
               },

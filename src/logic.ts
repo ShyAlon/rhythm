@@ -16,6 +16,15 @@ export function dueOn(state: State, d: Date): Habit[] {
   return state.habits.filter((h) => !h.archived && isDueOn(h, d));
 }
 
+/** Sum of the weights of everything checked off on the given day. */
+export function dailyScore(state: State, key: string): number {
+  let total = 0;
+  for (const h of state.habits) {
+    if ((state.completions[h.id] ?? []).includes(key)) total += h.weight ?? 0;
+  }
+  return Math.round(total * 100) / 100;
+}
+
 export function isCompleted(state: State, habitId: string, key: string): boolean {
   return (state.completions[habitId] ?? []).includes(key);
 }

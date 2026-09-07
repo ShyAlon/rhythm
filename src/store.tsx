@@ -13,6 +13,8 @@ function seed(): State {
   const now = new Date().toISOString();
   const mk = (p: Partial<Habit> & Pick<Habit, 'name' | 'emoji' | 'color'>): Habit => ({
     id: newId(),
+    kind: 'habit',
+    weight: 1,
     notes: '',
     recurrence: { kind: 'daily' },
     targetTime: null,
@@ -43,14 +45,19 @@ export function normalize(raw: unknown): State | null {
   const r = raw as Record<string, unknown>;
   if (r.version === 2 && Array.isArray(r.habits)) {
     const s = r as unknown as State;
-    return { ...s, completions: s.completions ?? {}, completionMeta: s.completionMeta ?? {} };
+    return {
+      ...s,
+      habits: s.habits.map((h) => ({ ...h, kind: h.kind ?? 'habit', weight: h.weight ?? 1 })), // v2.0 rows predate scoring
+      completions: s.completions ?? {},
+      completionMeta: s.completionMeta ?? {},
+    };
   }
   if (r.version === 1 && Array.isArray(r.habits)) {
     const old = r as unknown as { habits: Habit[]; completions?: Record<string, string[]> };
     return {
       version: 2,
       onboarded: true,
-      habits: old.habits.map((h) => ({ ...h, updatedAt: h.updatedAt ?? h.createdAt })),
+      habits: old.habits.map((h) => ({ ...h, kind: h.kind ?? 'habit', weight: h.weight ?? 1, updatedAt: h.updatedAt ?? h.createdAt })),
       completions: old.completions ?? {},
       completionMeta: {},
     };

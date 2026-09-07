@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useStore, newId } from '../store';
-import type { Habit } from '../types';
+import type { Habit, HabitKind } from '../types';
+
+const KIND_DEFAULT_WEIGHT: Record<HabitKind, number> = { habit: 1, bonus: 1, penalty: -1 };
 
 const EMOJIS = ['🧘','🦉','🍽️','🏋️','💧','📚','🏃','😴','🦷','💊','🎸','✍️','🧹','🌱','🙏','🚶','🥗','☕','📵','🎨','🧠','❤️','🐶','🎧'];
 const COLORS = ['#6c8cff','#9d6cff','#3ddc97','#ffb020','#ff6b6b','#4fd1e0','#f472b6','#a3e635'];
@@ -12,6 +14,8 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
   const [draft, setDraft] = useState<Habit>(() =>
     habit ?? {
       id: newId(),
+      kind: 'habit',
+      weight: 1,
       name: '',
       emoji: EMOJIS[0],
       color: COLORS[0],
@@ -33,12 +37,26 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
   }, [onClose]);
 
   const set = <K extends keyof Habit>(k: K, v: Habit[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const setKind = (k: HabitKind) =>
+    setDraft((d) => ({
+      ...d,
+      kind: k,
+      weight: d.weight === KIND_DEFAULT_WEIGHT[d.kind] ? KIND_DEFAULT_WEIGHT[k] : d.weight,
+    }));
   const weekly = draft.recurrence.kind === 'weekly';
-  const valid = draft.name.trim().length > 0 && (draft.recurrence.kind === 'daily' || draft.recurrence.days.length > 0);
+  const isHabit = draft.kind === 'habit';
+  const valid =
+    draft.name.trim().length > 0 &&
+    Number.isFinite(draft.weight) && Math.abs(draft.weight) < 1000 &&
+    (draft.recurrence.kind === 'daily' || draft.recurrence.days.length > 0);
 
   const save = () => {
     if (!valid) return;
-    const clean = { ...draft, name: draft.name.trim(), reminderTime: draft.reminderEnabled ? draft.reminderTime : draft.reminderTime ?? null };
+    // Bonus/penalty items are logged ad hoc: always daily, never scheduled or nagging.
+    const shaped: Habit = isHabit
+      ? draft
+      : { ...draft, recurrence: { kind: 'daily' }, targetTime: null, reminderEnabled: false, reminderTime: null };
+    const clean = { ...shaped, name: shaped.name.trim(), reminderTime: shaped.reminderEnabled ? shaped.reminderTime : shaped.reminderTime ?? null };
     dispatch({ type: isNew ? 'add' : 'update', habit: clean });
     onClose();
   };
@@ -52,7 +70,7 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" role="dialog" aria-label={isNew ? 'New habit' : 'Edit habit'} onClick={(e) => e.stopPropagation()}>
-        <h2 className="modal-title">{isNew ? 'New habit' : 'Edit habit'}</h2>
+        <h2 className="modal-title">{isNew ? `New ${draft.kind}` : `Edit ${draft.kind}`}</h2>
 
         <label className="field">
           <span>Name</span>
@@ -78,6 +96,27 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
         </div>
 
         <div className="field">
+          <span>Type</span>
+          <div className="seg">
+            <button className={`seg-btn ${draft.kind === 'habit' ? 'sel' : ''}`} onClick={() => setKind('habit')}>Habit</button>
+            <button className={`seg-btn ${draft.kind === 'bonus' ? 'sel' : ''}`} onClick={() => setKind('bonus')}>Bonus</button>
+            <button className={`seg-btn ${draft.kind === 'penalty' ? 'sel' : ''}`} onClick={() => setKind('penalty')}>Penalty</button>
+          </div>
+        </div>
+
+        <label className="field">
+          <span>Score weight</span>
+          <input
+            type="number"
+            step="0.5"
+            value={draft.weight}
+            onChange={(e) => set('weight', e.target.value === '' ? 0 : Number(e.target.value))}
+          />
+          <em className="field-hint">Adds to your daily score when checked. Negative for penalties.</em>
+        </label>
+
+        {isHabit && (
+        <div className="field">
           <span>Repeats</span>
           <div className="seg">
             <button className={`seg-btn ${!weekly ? 'sel' : ''}`} onClick={() => set('recurrence', { kind: 'daily' })}>Daily</button>
@@ -92,6 +131,10 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
           )}
         </div>
 
+        )}
+
+        {isHabit && (
+        <>
         <label className="field">
           <span>Target time <em>(optional)</em></span>
           <input type="time" value={draft.targetTime ?? ''} onChange={(e) => set('targetTime', e.target.value || null)} />
@@ -108,6 +151,9 @@ export default function Editor({ habit, onClose }: { habit: Habit | null; onClos
             <span>Remind me at</span>
             <input type="time" value={draft.reminderTime ?? '09:00'} onChange={(e) => set('reminderTime', e.target.value || '09:00')} />
           </label>
+        )}
+
+        </>
         )}
 
         <label className="field">

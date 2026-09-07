@@ -2,8 +2,12 @@ export type Recurrence =
   | { kind: 'daily' }
   | { kind: 'weekly'; days: number[] }; // 0 = Sunday .. 6 = Saturday
 
+export type HabitKind = 'habit' | 'bonus' | 'penalty';
+
 export interface Habit {
   id: string;
+  kind: HabitKind;      // habit = recurring routine, bonus = one-off good action, penalty = one-off slip
+  weight: number;       // decimal, + or -; daily score = sum of weights checked that day
   name: string;
   emoji: string;
   color: string; // hex accent

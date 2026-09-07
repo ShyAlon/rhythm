@@ -1,5 +1,8 @@
 name: dispatch-reminders
 
+# FALLBACK dispatcher. The primary scheduler is the pg_cron job "rhythm-dispatch"
+# inside Supabase (see supabase/schema.sql) - in-DB scheduling has no 60-day
+# repo-inactivity shutdown. This workflow stays as a manual/backup trigger.
 # Every 5 minutes, ping the Supabase edge function that sends due push reminders.
 # Doubles as a keep-alive so the free-tier Supabase project never goes idle-paused.
 on:

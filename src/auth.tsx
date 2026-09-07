@@ -7,12 +7,13 @@ interface AuthCtx {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (email: string, password: string) => Promise<string | null>;
+  signUp: (email: string, password: string) => Promise<{ error?: string; confirmationNeeded?: boolean }>;
   signOut: () => Promise<void>;
 }
 
 const noop = async () => 'Backend not configured';
-const Ctx = createContext<AuthCtx>({ session: null, loading: false, signIn: noop, signUp: noop, signOut: async () => {} });
+const noopUp = async () => ({ error: 'Backend not configured' });
+const Ctx = createContext<AuthCtx>({ session: null, loading: false, signIn: noop, signUp: noopUp, signOut: async () => {} });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -38,9 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return error?.message ?? null;
       },
       signUp: async (email, password) => {
-        if (!supabase) return 'Backend not configured';
-        const { error } = await supabase.auth.signUp({ email, password });
-        return error?.message ?? null;
+        if (!supabase) return { error: 'Backend not configured' };
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) return { error: error.message };
+        return { confirmationNeeded: !data.session }; // email confirmation on: no session until confirmed
       },
       signOut: async () => {
         await supabase?.auth.signOut();

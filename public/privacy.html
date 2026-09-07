@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rhythm - Privacy</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0b0d12; color: #f2f4f8; margin: 0; padding: 24px; line-height: 1.6; }
+  main { max-width: 620px; margin: 0 auto; }
+  h1 { font-size: 24px; } h2 { font-size: 17px; margin-top: 28px; color: #6c8cff; }
+  p, li { color: #c6ccda; font-size: 15px; }
+  a { color: #6c8cff; }
+</style>
+</head>
+<body>
+<main>
+<h1>Rhythm privacy policy</h1>
+<p>Rhythm is a small personal habit tracker. This page says exactly what it stores, where, and why.</p>
+
+<h2>What is stored</h2>
+<ul>
+  <li><strong>Account:</strong> your email address. Passwords are never stored in plain text - they are salted bcrypt hashes handled by Supabase Auth. There are no usernames.</li>
+  <li><strong>Your data:</strong> habit, bonus, and penalty names, emojis, notes, schedules, score weights, and your day-by-day completion history.</li>
+  <li><strong>Push notifications:</strong> if you enable reminders, each device stores a Web Push endpoint and browser-generated encryption keys. These are not passwords; they are how notifications reach your device.</li>
+</ul>
+
+<h2>Where it lives</h2>
+<ul>
+  <li>On your device, in local storage - the app works fully offline.</li>
+  <li>In a Supabase Postgres database (EU region) if you create an account, for cross-device sync. Row-level security means your rows are readable and writable only by your account.</li>
+</ul>
+
+<h2>What leaves the building</h2>
+<ul>
+  <li>Push reminders travel through your browser vendor's push service (Apple, Google, or Mozilla) to reach your device. The notification text includes the habit name you chose.</li>
+  <li>Nothing is sold, shared, or used for analytics or ads. There are no trackers in the app.</li>
+</ul>
+
+<h2>Deletion</h2>
+<ul>
+  <li>Account tab - Delete account wipes your account and every row of your cloud data, immediately and permanently. The local copy on your device remains under your control.</li>
+  <li>You can export everything as JSON from the app at any time.</li>
+</ul>
+
+<h2>Contact</h2>
+<p>Issues and questions: <a href="https://github.com/ShyAlon/rhythm/issues">github.com/ShyAlon/rhythm/issues</a></p>
+<p>Last updated: September 2026 (v3).</p>
+</main>
+</body>
+</html>

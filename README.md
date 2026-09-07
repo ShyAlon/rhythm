@@ -1,14 +1,17 @@
 # Rhythm - Daily Habits
 
 An installable PWA for tracking recurring daily and weekly habits: reminders, streaks, and
-adherence stats. v2 adds accounts, cross-device cloud sync, and real push notifications -
+adherence stats. v2 added accounts, cross-device cloud sync, and real push notifications.
+v3 adds bonus/penalty items with weighted daily scores and the security/privacy pass -
 on a stack designed to cost **$0/month** for the first ~10 users.
 
 ![icon](public/icons/icon-192.png)
 
 ## Features
 
-- **Today view** - checklist of what's due today with a progress ring and one-tap check-off
+- **Today view** - checklist of what's due today with a progress ring, live daily score, and one-tap check-off
+- **Bonus & penalty items** - one-off good actions and slips with a per-item decimal weight
+  (positive or negative); the daily score sums everything you checked that day
 - **Full schedule CRUD** - habits with emoji, color, notes, optional target time (e.g. "stop eating by 20:00")
 - **Recurrence** - daily, or weekly on specific weekdays
 - **Accounts + cloud sync** - email/password sign-in; habits and completions sync across devices
@@ -33,21 +36,25 @@ on a stack designed to cost **$0/month** for the first ~10 users.
 
 Two free-tier gotchas, both mitigated:
 
-- **Supabase free projects pause after ~7 days of inactivity.** The `dispatch-reminders`
-  GitHub Actions cron hits the database every 5 minutes, which keeps the project active.
-- **GitHub's scheduled workflows can run a few minutes late under load.** The dispatcher
-  uses a 10-minute lookback window with per-day dedupe, so reminders still fire (at most
-  once per habit per day).
+- **Supabase free projects pause after ~7 days of inactivity.** The `rhythm-dispatch`
+  pg_cron job hits the database every 5 minutes, which keeps the project active.
+- **GitHub auto-disables scheduled workflows after 60 days of repo inactivity** (v3 lesson).
+  Reminder scheduling therefore lives in the database (pg_cron + pg_net, primary); the
+  GitHub cron is a fallback only.
+- **Schedulers can run a few minutes late under load.** The dispatcher uses a 10-minute
+  lookback window with per-day dedupe, so reminders still fire (at most once per habit per day).
 
-Guardrails: 100 live habits per user (DB trigger). See `V3-SECURITY.md` for the
-security/privacy hardening backlog.
+Guardrails: 100 live habits per user (DB trigger), DB-level input validation, RLS on every
+table. v3 shipped the security/privacy pass - see `V3-SECURITY.md` (what shipped + what's
+still deferred), `RUNBOOKS.md` (rotations and ops), and `public/privacy.html`.
 
 ## Repo layout
 
 - `src/` - React app (Today / Schedule / Stats / Account views, sync engine, push client)
 - `public/sw.js` - service worker: offline shell + Web Push handlers
-- `supabase/schema.sql` - full database schema (tables, RLS, limits) - idempotent
+- `supabase/schema.sql` - full database schema (tables, RLS, limits, pg_cron jobs) - idempotent
 - `supabase/functions/dispatch/index.ts` - reminder dispatcher edge function
+- `supabase/functions/delete-account/index.ts` - self-serve account erasure (cascades all data)
 - `.github/workflows/deploy.yml` - build + publish to `gh-pages`
 - `.github/workflows/dispatch.yml` - every-5-minutes call to the dispatcher
 
@@ -59,8 +66,8 @@ security/privacy hardening backlog.
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` - the Web Push keypair (generate with `npx web-push generate-vapid-keys`)
    - `VAPID_SUBJECT` - a contact URL, e.g. `https://github.com/<you>/rhythm`
    - `DISPATCH_SECRET` - any long random string
-4. In Auth settings, disable "Confirm email" (v2 uses password sign-in without email
-   verification; email confirmation is on the v3 list).
+4. Auth settings: set Site URL to the app's public URL. Email confirmation is ON since v3
+   (signups get a confirmation link before first sign-in).
 5. Set GitHub repo secrets:
    - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - from project settings (build-time, public by design)
    - `SUPABASE_FUNCTION_URL` - `https://<project-ref>.supabase.co/functions/v1/dispatch`
