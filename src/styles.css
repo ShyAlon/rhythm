@@ -202,7 +202,7 @@ html, body {
 .heatmap { display: flex; gap: 3px; }
 .hm-col { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .hm-cell { aspect-ratio: 1; border-radius: 3px; background: var(--card-border); opacity: 0.35; }
-.hm-cell.hm-miss { opacity: 1; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-dim) 35%, transparent); }
+.hm-cell.hm-miss { opacity: 1; background: color-mix(in srgb, var(--text-dim) 30%, var(--card)); }
 .hm-cell.hm-done { background: var(--hc); opacity: 1; }
 .hm-cell.hm-na { opacity: 0.08; }
 
