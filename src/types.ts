@@ -27,4 +27,9 @@ export interface State {
   completions: Record<string, string[]>;                 // habitId -> ['2026-09-07', ...] local date keys
   completionMeta: Record<string, Record<string, string>>; // habitId -> day -> updatedAt ISO (sync conflict resolution)
   onboarded: boolean;
+  /** True only while local state is the untouched auto-generated demo seed.
+   *  Set by seed(), cleared by the first user-originated change and by sync.
+   *  Lets first sign-in on a fresh device prefer server data over re-uploading
+   *  the seed (which would duplicate everything). */
+  seedPristine?: boolean;
 }
