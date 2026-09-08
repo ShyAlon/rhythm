@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { State } from './types';
 import { onLocalChange } from './store';
 import type { LocalChange } from './store';
-import { fullMerge, habitToRow, rowToHabit } from './syncMerge';
+import { fullMerge, habitToRow, rowToHabit, ts } from './syncMerge';
 import type { HabitRow, CompletionRow } from './syncMerge';
 
 export type SyncStatus = 'off' | 'syncing' | 'synced' | 'error' | 'offline';
@@ -133,10 +133,10 @@ export function startSync(
     let maxTs = since;
 
     for (const r of (hRows ?? []) as HabitRow[]) {
-      if (r.updated_at > maxTs) maxTs = r.updated_at;
+      if (ts(r.updated_at) > ts(maxTs)) maxTs = r.updated_at;
       const local = habits.get(r.id);
       if (r.deleted) {
-        if (local && local.updatedAt <= r.updated_at) {
+        if (local && ts(local.updatedAt) <= ts(r.updated_at)) {
           habits.delete(r.id);
           delete completions[r.id];
           delete completionMeta[r.id];
@@ -145,17 +145,17 @@ export function startSync(
         continue;
       }
       const remote = rowToHabit(r);
-      if (!local || (local.updatedAt <= remote.updatedAt && !dirtyHabits.has(r.id))) {
+      if (!local || (ts(local.updatedAt) <= ts(remote.updatedAt) && !dirtyHabits.has(r.id))) {
         habits.set(r.id, remote);
       }
       if (!meta.knownIds.includes(r.id)) meta.knownIds.push(r.id);
     }
 
     for (const r of (cRows ?? []) as CompletionRow[]) {
-      if (r.updated_at > maxTs) maxTs = r.updated_at;
+      if (ts(r.updated_at) > ts(maxTs)) maxTs = r.updated_at;
       const key = `${r.habit_id}|${r.day}`;
       const localTs = completionMeta[r.habit_id]?.[r.day] ?? null;
-      if (localTs && localTs > r.updated_at) continue; // local edit is newer; flush will push it
+      if (localTs && ts(localTs) > ts(r.updated_at)) continue; // local edit is newer; flush will push it
       const list = new Set(completions[r.habit_id] ?? []);
       if (r.done) list.add(r.day);
       else list.delete(r.day);
