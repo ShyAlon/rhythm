@@ -61,3 +61,15 @@ select cron.schedule('rhythm-dispatch', '*/5 * * * *',
 - Project pauses after 7 idle days - the pg_cron dispatch job keeps it warm by
   querying the database every 5 minutes.
 - Guardrail: 100 live habits per user (DB trigger).
+
+## Pre-deploy sanity gate
+
+Every push to main runs the test suite and live smoke checks BEFORE build/deploy;
+a failure blocks the deploy (`.github/workflows/deploy.yml`):
+
+- `npm test` - vitest unit tests: sync idempotency, the seed-duplication guard,
+  v1/v2 migration, merge conflict resolution (src/*.test.ts).
+- `node scripts/smoke-auth.mjs` - live checks against the production project using
+  only the publishable key: auth health, bad-password rejection, signup issues no
+  session (email confirmation on), recovery endpoint alive, anon key reads zero
+  rows (RLS). Skips cleanly when the repo secrets are unset (local-only build).
