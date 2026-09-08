@@ -14,10 +14,29 @@ const STATUS_LABEL: Record<SyncStatus, string> = {
   offline: 'Offline - changes will sync when you reconnect',
 };
 
+const passkeySupported = typeof window !== 'undefined' && 'PublicKeyCredential' in window;
+
+/** Cancelling the system passkey prompt is not an error worth showing. */
+const isPasskeyCancel = (message: string) =>
+  /not allowed|timed out|abort|cancel/i.test(message);
+
 export default function Account({ status, toast }: { status: SyncStatus; toast: (t: string, b: string) => void }) {
-  const { session, loading, signIn, signUp, signOut } = useAuth();
+  const {
+    session,
+    loading,
+    recovery,
+    signIn,
+    signUp,
+    signOut,
+    resetPassword,
+    updatePassword,
+    signInWithPasskey,
+    registerPasskey,
+  } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [newPw2, setNewPw2] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -59,6 +78,47 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
     else toast('🎉 Account created', 'Your habits now sync to the cloud.');
   };
 
+  const forgot = async () => {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    const err = await resetPassword(email.trim());
+    setBusy(false);
+    if (err) setError(err);
+    else setInfo('Reset link sent. Open the email on this device and follow the link to choose a new password.');
+  };
+
+  const saveNewPassword = async () => {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    const err = await updatePassword(newPw);
+    setBusy(false);
+    if (err) setError(err);
+    else toast('✅ Password updated', 'You are signed in with your new password.');
+  };
+
+  const passkeyIn = async () => {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    const err = await signInWithPasskey();
+    setBusy(false);
+    if (err && !isPasskeyCancel(err)) setError(err);
+  };
+
+  const addPasskey = async () => {
+    setBusy(true);
+    setError(null);
+    const err = await registerPasskey();
+    setBusy(false);
+    if (err) {
+      if (!isPasskeyCancel(err)) setError(err);
+      return;
+    }
+    toast('🔑 Passkey added', 'Next time, sign in with your fingerprint, face, or device PIN.');
+  };
+
   const deleteAccount = async () => {
     if (!supabase || !session) return;
     if (!window.confirm('Delete your Rhythm account and wipe all cloud data? This cannot be undone. Data on this device stays.')) return;
@@ -82,6 +142,35 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
     }
     setBusy(false);
   };
+
+  // Password-reset landing: the reset email link opens the app here.
+  if (recovery) {
+    return (
+      <div className="view">
+        <header className="page-head">
+          <h1>Choose a new password</h1>
+          <p className="page-sub">{session?.user?.email ?? 'Password reset'}</p>
+        </header>
+        <section className="account-card">
+          <label className="field">
+            <span>New password</span>
+            <input type="password" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="6+ characters" />
+          </label>
+          <label className="field">
+            <span>Repeat new password</span>
+            <input type="password" autoComplete="new-password" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} placeholder="Same as above" />
+          </label>
+          {newPw2.length > 0 && newPw !== newPw2 && <p className="form-error">Passwords do not match.</p>}
+          {error && <p className="form-error">{error}</p>}
+          <div className="settings-actions">
+            <button className="btn primary" disabled={busy || newPw.length < 6 || newPw !== newPw2} onClick={() => void saveNewPassword()}>
+              Save new password
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
@@ -114,6 +203,16 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
             <button className="btn" disabled={busy || loading || !email.includes('@') || password.length < 6} onClick={() => void submit('up')}>
               Create account
             </button>
+          </div>
+          <div className="settings-actions">
+            <button className="btn ghost" disabled={busy || loading || !email.includes('@')} onClick={() => void forgot()}>
+              Forgot password?
+            </button>
+            {passkeySupported && (
+              <button className="btn ghost" disabled={busy || loading} onClick={() => void passkeyIn()}>
+                Sign in with a passkey
+              </button>
+            )}
           </div>
         </section>
       </div>
@@ -176,6 +275,18 @@ export default function Account({ status, toast }: { status: SyncStatus; toast: 
             </button>
           )}
         </div>
+
+        {passkeySupported && (
+          <div className="settings-row">
+            <div>
+              <strong>Passkey sign-in</strong>
+              <p className="settings-note">
+                Sign in with your fingerprint, face, or device PIN instead of a password. Add one on each device you use.
+              </p>
+            </div>
+            <button className="btn" disabled={busy} onClick={() => void addPasskey()}>Add</button>
+          </div>
+        )}
 
         <div className="settings-row">
           <div>
