@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# Never publish gh-pages from two runs at once (push race loses one deploy).
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
