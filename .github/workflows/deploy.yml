@@ -23,6 +23,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Sanity tests (sync idempotency, migration, merge conflicts)
+        run: npm test
+      - name: Live auth/RLS smoke checks
+        run: node scripts/smoke-auth.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - name: Build (backend keys come from repo secrets; empty = local-only build)
         run: npm run build
         env:
