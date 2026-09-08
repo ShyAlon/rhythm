@@ -14,6 +14,7 @@ const STATUS_LABEL: Record<SyncStatus, string> = {
   offline: 'Offline - changes will sync when you reconnect',
 };
 
+// v4 auth additions: forgot/reset password, passkey sign-in and registration.
 const passkeySupported = typeof window !== 'undefined' && 'PublicKeyCredential' in window;
 
 /** Cancelling the system passkey prompt is not an error worth showing. */
