@@ -6,7 +6,14 @@ const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const backendConfigured = Boolean(url && anon);
 export const supabaseUrl = (url as string | undefined) ?? '';
-export const supabase: SupabaseClient | null = backendConfigured ? createClient(url as string, anon as string) : null;
+export const supabase: SupabaseClient | null = backendConfigured
+  ? createClient(url as string, anon as string, {
+      auth: {
+        // Passkeys (WebAuthn) - experimental opt-in per Supabase docs.
+        experimental: { passkey: true },
+      },
+    })
+  : null;
 
 // Web Push VAPID *public* key. Safe to ship in the client by design; the private
 // key lives only in the edge function's secrets.
