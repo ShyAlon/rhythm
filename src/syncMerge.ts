@@ -12,6 +12,15 @@ export interface HabitRow {
 
 export interface CompletionRow { habit_id: string; day: string; done: boolean; updated_at: string }
 
+/** Compare timestamps numerically, never lexicographically: server rows arrive in
+ *  PostgREST format ('2026-09-08T04:52:31.785723+00:00') while local edits use
+ *  Date.toISOString() ('...Z'). String compare mis-orders equal-ish instants
+ *  ('Z' > '+'), which can wrongly resurrect a server-tombstoned habit. */
+export function ts(s: string): number {
+  const n = Date.parse(s);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 export interface UploadCompletion { habit_id: string; user_id: string; day: string; done: boolean; updated_at: string }
 
 export function habitToRow(h: Habit, userId: string, deleted = false) {
@@ -101,7 +110,7 @@ export function fullMerge(
   for (const [id, row] of server) {
     const local = localById.get(id);
     if (row.deleted) {
-      if (local && local.updatedAt > row.updated_at) {
+      if (local && ts(local.updatedAt) > ts(row.updated_at)) {
         uploadHabits.push(habitToRow(local, userId, false)); // local edit out-races remote delete: resurrect
         mergedHabits.push(local);
       } else if (local) {
@@ -112,7 +121,7 @@ export function fullMerge(
     const remote = rowToHabit(row);
     if (!local) {
       mergedHabits.push(remote);
-    } else if (local.updatedAt > remote.updatedAt) {
+    } else if (ts(local.updatedAt) > ts(remote.updatedAt)) {
       uploadHabits.push(habitToRow(local, userId));
       mergedHabits.push(local);
     } else {
@@ -145,7 +154,7 @@ export function fullMerge(
     const localDone = (localCompletions[hid] ?? []).includes(day);
     const localTs = localMeta[hid]?.[day] ?? null;
     if (sRow) {
-      if (localTs && localTs > sRow.updated_at && localDone !== sRow.done) {
+      if (localTs && ts(localTs) > ts(sRow.updated_at) && localDone !== sRow.done) {
         uploadCompletions.push({ habit_id: hid, user_id: userId, day, done: localDone, updated_at: localTs });
         if (localDone) (completions[hid] ??= []).push(day);
         (completionMeta[hid] ??= {})[day] = localTs;
