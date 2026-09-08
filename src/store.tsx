@@ -9,7 +9,7 @@ export function newId(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
-function seed(): State {
+export function seed(): State {
   const now = new Date().toISOString();
   const mk = (p: Partial<Habit> & Pick<Habit, 'name' | 'emoji' | 'color'>): Habit => ({
     id: newId(),
@@ -30,6 +30,7 @@ function seed(): State {
     onboarded: true,
     completions: {},
     completionMeta: {},
+    seedPristine: true, // untouched demo data; first sync decides whether it is safe to upload
     habits: [
       mk({ name: 'Meditate', emoji: '🧘', color: '#9d6cff', reminderEnabled: true, reminderTime: '08:00' }),
       mk({ name: 'Duolingo', emoji: '🦉', color: '#3ddc97', reminderEnabled: true, reminderTime: '18:00' }),
@@ -113,19 +114,19 @@ export type Action =
   | { type: 'import'; state: State }
   | { type: 'replaceAll'; state: State };
 
-function reducer(s: State, a: Action): State {
+export function reducer(s: State, a: Action): State {
   const now = new Date().toISOString();
   switch (a.type) {
     case 'add':
-      return { ...s, habits: [...s.habits, { ...a.habit, updatedAt: now }] };
+      return { ...s, seedPristine: false, habits: [...s.habits, { ...a.habit, updatedAt: now }] };
     case 'update':
-      return { ...s, habits: s.habits.map((h) => (h.id === a.habit.id ? { ...a.habit, updatedAt: now } : h)) };
+      return { ...s, seedPristine: false, habits: s.habits.map((h) => (h.id === a.habit.id ? { ...a.habit, updatedAt: now } : h)) };
     case 'remove': {
       const completions = { ...s.completions };
       const completionMeta = { ...s.completionMeta };
       delete completions[a.id];
       delete completionMeta[a.id];
-      return { ...s, habits: s.habits.filter((h) => h.id !== a.id), completions, completionMeta };
+      return { ...s, seedPristine: false, habits: s.habits.filter((h) => h.id !== a.id), completions, completionMeta };
     }
     case 'toggle': {
       const list = s.completions[a.id] ?? [];
@@ -133,13 +134,18 @@ function reducer(s: State, a: Action): State {
       const metaFor = { ...(s.completionMeta[a.id] ?? {}), [a.day]: now };
       return {
         ...s,
+        seedPristine: false,
         completions: { ...s.completions, [a.id]: has ? list.filter((d) => d !== a.day) : [...list, a.day] },
         completionMeta: { ...s.completionMeta, [a.id]: metaFor },
       };
     }
-    case 'import':
+    case 'import': {
+      const n = normalize(a.state);
+      return n ? { ...n, seedPristine: false } : s;
+    }
     case 'replaceAll':
-      return normalize(a.state) ?? s;
+      return normalize(a.state) ?? s; // sync-originated: syncMerge owns the flag
+
   }
 }
 
