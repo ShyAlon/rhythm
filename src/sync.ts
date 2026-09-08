@@ -1,7 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Habit, State } from './types';
+import type { State } from './types';
 import { onLocalChange } from './store';
 import type { LocalChange } from './store';
+import { fullMerge, habitToRow, rowToHabit } from './syncMerge';
+import type { HabitRow, CompletionRow } from './syncMerge';
 
 export type SyncStatus = 'off' | 'syncing' | 'synced' | 'error' | 'offline';
 
@@ -27,55 +29,6 @@ function loadMeta(userId: string): SyncMeta {
 
 function saveMeta(m: SyncMeta): void {
   try { localStorage.setItem(META_KEY, JSON.stringify(m)); } catch { /* storage full */ }
-}
-
-function habitToRow(h: Habit, userId: string, deleted = false) {
-  return {
-    id: h.id,
-    user_id: userId,
-    kind: h.kind,
-    weight: h.weight,
-    name: h.name,
-    emoji: h.emoji,
-    color: h.color,
-    notes: h.notes,
-    recurrence: h.recurrence,
-    target_time: h.targetTime,
-    reminder_enabled: h.reminderEnabled,
-    reminder_time: h.reminderTime,
-    archived: h.archived,
-    deleted,
-    created_at: h.createdAt,
-    updated_at: h.updatedAt,
-  };
-}
-
-interface HabitRow {
-  id: string; kind: Habit['kind']; weight: number | null; name: string; emoji: string; color: string; notes: string | null;
-  recurrence: Habit['recurrence']; target_time: string | null; reminder_enabled: boolean;
-  reminder_time: string | null; archived: boolean; deleted: boolean;
-  created_at: string; updated_at: string;
-}
-
-interface CompletionRow { habit_id: string; day: string; done: boolean; updated_at: string }
-
-function rowToHabit(r: HabitRow): Habit {
-  return {
-    id: r.id,
-    kind: r.kind ?? 'habit',
-    weight: r.weight ?? 1,
-    name: r.name,
-    emoji: r.emoji,
-    color: r.color,
-    notes: r.notes ?? '',
-    recurrence: r.recurrence,
-    targetTime: r.target_time,
-    reminderEnabled: r.reminder_enabled,
-    reminderTime: r.reminder_time,
-    archived: r.archived,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-  };
 }
 
 export interface SyncHandle {
@@ -134,93 +87,29 @@ export function startSync(
       onStatus('error', (hErr ?? cErr)?.message);
       return;
     }
-    const server = new Map<string, HabitRow>((hRows ?? []).map((r) => [r.id as string, r as HabitRow]));
-    const state = getState();
-    const localById = new Map(state.habits.map((h) => [h.id, h]));
-    const known = new Set(meta.knownIds);
-    const uploadHabits: ReturnType<typeof habitToRow>[] = [];
-    const dropCompletionIds: string[] = [];
-    const mergedHabits: Habit[] = [];
+    const result = fullMerge(
+      (hRows ?? []) as HabitRow[],
+      (cRows ?? []) as CompletionRow[],
+      getState(),
+      meta.knownIds,
+      userId,
+      meta.lastPull === EPOCH,
+    );
 
-    for (const [id, row] of server) {
-      const local = localById.get(id);
-      if (row.deleted) {
-        if (local && local.updatedAt > row.updated_at) {
-          uploadHabits.push(habitToRow(local, userId, false)); // local edit out-races remote delete: resurrect
-          mergedHabits.push(local);
-        } else if (local) {
-          dropCompletionIds.push(id);
-        }
-        continue;
-      }
-      const remote = rowToHabit(row);
-      if (!local) {
-        mergedHabits.push(remote);
-      } else if (local.updatedAt > remote.updatedAt) {
-        uploadHabits.push(habitToRow(local, userId));
-        mergedHabits.push(local);
-      } else {
-        mergedHabits.push(remote);
-      }
-    }
-    for (const [id, local] of localById) {
-      if (server.has(id)) continue;
-      if (known.has(id)) continue; // known before, now absent: hard-deleted elsewhere, drop it
-      uploadHabits.push(habitToRow(local, userId)); // never synced (e.g. migrated v1 data)
-      mergedHabits.push(local);
-    }
-
-    // Completions: union of keys, last-write-wins per (habit, day)
-    const serverComp = new Map<string, CompletionRow>();
-    for (const r of (cRows ?? []) as CompletionRow[]) serverComp.set(`${r.habit_id}|${r.day}`, r);
-    const keys = new Set<string>(serverComp.keys());
-    for (const [hid, days] of Object.entries(state.completions)) for (const d of days) keys.add(`${hid}|${d}`);
-    for (const [hid, days] of Object.entries(state.completionMeta)) for (const d of Object.keys(days)) keys.add(`${hid}|${d}`);
-
-    const completions: Record<string, string[]> = {};
-    const completionMeta: Record<string, Record<string, string>> = {};
-    const uploadComp: { habit_id: string; user_id: string; day: string; done: boolean; updated_at: string }[] = [];
-
-    for (const key of keys) {
-      const splitAt = key.indexOf('|');
-      const hid = key.slice(0, splitAt);
-      const day = key.slice(splitAt + 1);
-      const sRow = serverComp.get(key);
-      const localDone = (state.completions[hid] ?? []).includes(day);
-      const localTs = state.completionMeta[hid]?.[day] ?? null;
-      if (sRow) {
-        if (localTs && localTs > sRow.updated_at && localDone !== sRow.done) {
-          uploadComp.push({ habit_id: hid, user_id: userId, day, done: localDone, updated_at: localTs });
-          if (localDone) (completions[hid] ??= []).push(day);
-          (completionMeta[hid] ??= {})[day] = localTs;
-        } else {
-          if (sRow.done) (completions[hid] ??= []).push(day);
-          (completionMeta[hid] ??= {})[day] = sRow.updated_at;
-        }
-      } else if (localDone || localTs) {
-        const ts = localTs ?? new Date().toISOString();
-        uploadComp.push({ habit_id: hid, user_id: userId, day, done: localDone, updated_at: ts });
-        if (localDone) (completions[hid] ??= []).push(day);
-        (completionMeta[hid] ??= {})[day] = ts;
-      }
-    }
-
-    if (uploadHabits.length) {
-      const { error } = await sb.from('habits').upsert(uploadHabits);
+    if (result.uploadHabits.length) {
+      const { error } = await sb.from('habits').upsert(result.uploadHabits);
       if (error) { onStatus('error', error.message); return; }
     }
-    for (const hid of dropCompletionIds) {
+    for (const hid of result.dropCompletionIds) {
       await sb.from('completions').delete().eq('habit_id', hid);
     }
-    if (uploadComp.length) {
-      const { error } = await sb.from('completions').upsert(uploadComp);
+    if (result.uploadCompletions.length) {
+      const { error } = await sb.from('completions').upsert(result.uploadCompletions);
       if (error) { onStatus('error', error.message); return; }
     }
 
-    mergedHabits.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    replaceAll({ ...state, habits: mergedHabits, completions, completionMeta });
-    const ids = new Set([...server.keys(), ...mergedHabits.map((h) => h.id)]);
-    meta = { userId, lastPull: new Date().toISOString(), knownIds: [...ids] };
+    replaceAll(result.state);
+    meta = { userId, lastPull: new Date().toISOString(), knownIds: result.knownIds };
     saveMeta(meta);
     dirtyHabits.clear();
     dirtyCompletions.clear();
