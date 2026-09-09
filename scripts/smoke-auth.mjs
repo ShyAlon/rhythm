@@ -41,6 +41,12 @@ const bad = await fetch(`${url}/auth/v1/token?grant_type=password`, {
 });
 check('bad password rejected', bad.status === 400, `status ${bad.status}`);
 
+// Supabase answers the mailer rate limit two ways depending on the error path:
+// HTTP 429, or HTTP 400 with a {code:429, error_code:'over_email_send_rate_limit'}
+// body. Both mean alive-but-limited - and crucially, neither carries a session.
+const emailLimited = (status, body) =>
+  status === 429 || (status === 400 && (body?.code === 429 || body?.error_code === 'over_email_send_rate_limit'));
+
 // 3. Signup issues no session (email confirmation stays ON).
 const up = await fetchTolerant(`${url}/auth/v1/signup`, {
   method: 'POST', headers: h,
@@ -49,18 +55,19 @@ const up = await fetchTolerant(`${url}/auth/v1/signup`, {
 const upBody = await up.json().catch(() => ({}));
 check(
   'signup issues no session (email confirmation on)',
-  (up.status === 200 && !upBody.access_token) || up.status === 429,
-  `status ${up.status}${up.status === 429 ? ' (rate-limited; endpoint alive)' : ''}`,
+  (up.status === 200 && !upBody.access_token) || (emailLimited(up.status, upBody) && !upBody.access_token),
+  `status ${up.status}${emailLimited(up.status, upBody) ? ' (email rate-limited; endpoint alive)' : ''}`,
 );
 
 // 4. Password recovery endpoint accepts requests (forgot-password flow alive).
 const rec = await fetchTolerant(`${url}/auth/v1/recover`, {
   method: 'POST', headers: h, body: JSON.stringify({ email: probe }),
 });
+const recBody = await rec.clone().json().catch(() => ({}));
 check(
   'recovery endpoint accepts reset requests',
-  rec.status === 200 || rec.status === 429,
-  `status ${rec.status}${rec.status === 429 ? ' (rate-limited; endpoint alive)' : ''}`,
+  rec.status === 200 || emailLimited(rec.status, recBody),
+  `status ${rec.status}${emailLimited(rec.status, recBody) ? ' (email rate-limited; endpoint alive)' : ''}`,
 );
 
 // 5. RLS: the publishable key alone reads zero habit rows.
