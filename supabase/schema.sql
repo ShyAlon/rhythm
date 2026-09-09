@@ -155,3 +155,64 @@ end
 $fn$;
 
 select cron.schedule('rhythm-retention', '17 3 1 * *', $job$select public.retention_cleanup()$job$);
+
+-- ============ v4 additions (weight log + Apple Health ingest) ============
+create table if not exists public.weight_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  kg numeric not null,
+  taken_at timestamptz not null default now(),
+  source text not null default 'manual',
+  created_at timestamptz not null default now()
+);
+
+alter table public.weight_entries enable row level security;
+
+drop policy if exists "own weights" on public.weight_entries;
+create policy "own weights" on public.weight_entries
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+alter table public.weight_entries drop constraint if exists weight_kg_range;
+alter table public.weight_entries add constraint weight_kg_range check (kg > 20 and kg < 400);
+alter table public.weight_entries drop constraint if exists weight_taken_at_sane;
+alter table public.weight_entries add constraint weight_taken_at_sane
+  check (taken_at > '2020-01-01'::timestamptz and taken_at < now() + interval '1 day');
+alter table public.weight_entries drop constraint if exists weight_source_len;
+alter table public.weight_entries add constraint weight_source_len check (char_length(source) <= 40);
+
+-- One entry per exact timestamp per user: a re-fired Shortcut with the same
+-- Health sample dedupes instead of double-logging.
+create unique index if not exists weight_entries_user_taken on public.weight_entries (user_id, taken_at);
+create index if not exists weight_entries_user_recent on public.weight_entries (user_id, taken_at desc);
+
+-- Free-tier guardrail: 5000 weight rows per user (~13 years of daily weigh-ins).
+create or replace function public.enforce_weight_limit() returns trigger
+language plpgsql as $$
+begin
+  if (select count(*) from public.weight_entries where user_id = new.user_id) >= 5000 then
+    raise exception 'weight_limit_reached' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists weights_limit on public.weight_entries;
+create trigger weights_limit before insert on public.weight_entries
+  for each row execute function public.enforce_weight_limit();
+
+-- Per-user tokens for the ingest edge function. The token is the credential
+-- (an iOS Shortcut cannot hold a Supabase session); it is readable only by its
+-- owner through RLS, and regenerating replaces it.
+create table if not exists public.ingest_tokens (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  token text not null unique,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.ingest_tokens enable row level security;
+
+drop policy if exists "own ingest token" on public.ingest_tokens;
+create policy "own ingest token" on public.ingest_tokens
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+alter table public.ingest_tokens drop constraint if exists ingest_token_shape;
+alter table public.ingest_tokens add constraint ingest_token_shape check (token ~ '^rhythm_ingest_[0-9a-f]{48}$');

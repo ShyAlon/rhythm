@@ -74,6 +74,27 @@ check(
   `status ${rls.status}, rows ${Array.isArray(rlsBody) ? rlsBody.length : 'n/a'}`,
 );
 
+// 6. ingest-weight edge function is deployed and rejects a well-formed but
+// unknown token (also proves the ingest tables exist from the function's side).
+const ing = await fetch(`${url}/functions/v1/ingest-weight`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token: `rhythm_ingest_${'0'.repeat(48)}`, kg: 80 }),
+});
+check('ingest-weight rejects unknown token', ing.status === 401, `status ${ing.status}`);
+
+// 7. RLS: the publishable key alone reads zero weight rows and zero ingest tokens.
+for (const table of ['weight_entries', 'ingest_tokens']) {
+  const r = await fetch(`${url}/rest/v1/${table}?select=*`, {
+    headers: { apikey: anon, Authorization: `Bearer ${anon}` },
+  });
+  const rows = await r.json().catch(() => null);
+  check(
+    `anon key reads zero ${table} rows (RLS)`,
+    r.status === 200 && Array.isArray(rows) && rows.length === 0,
+    `status ${r.status}, rows ${Array.isArray(rows) ? rows.length : 'n/a'}`,
+  );
+}
+
 if (failures) {
   console.error(`smoke-auth: ${failures} check(s) failed`);
   process.exit(1);

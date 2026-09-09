@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useStore, exportState, parseImport } from '../store';
 import { adherence, bestStreak, currentStreak, heatmap, recurrenceLabel } from '../logic';
 import { permissionState, requestPermission } from '../reminders';
+import Weight from './Weight';
 
 export default function Stats({ toast }: { toast: (t: string, b: string) => void }) {
   const { state, dispatch } = useStore();
@@ -61,6 +62,8 @@ export default function Stats({ toast }: { toast: (t: string, b: string) => void
           </section>
         );
       })}
+
+      <Weight toast={toast} />
 
       {habits.length === 0 && (
         <div className="empty"><span className="empty-emoji">📊</span><p>Add habits to start seeing stats.</p></div>

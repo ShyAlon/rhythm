@@ -2,13 +2,16 @@
 
 An installable PWA for tracking recurring daily and weekly habits: reminders, streaks, and
 adherence stats. v2 added accounts, cross-device cloud sync, and real push notifications.
-v3 adds bonus/penalty items with weighted daily scores and the security/privacy pass -
-on a stack designed to cost **$0/month** for the first ~10 users.
+v3 adds bonus/penalty items with weighted daily scores and the security/privacy pass.
+v4 adds a weight log with a trend chart, plus an Apple Health bridge: an iOS Shortcut
+posts weigh-ins to a Supabase edge function keyed by a per-user ingest token -
+still **$0/month** for the first ~10 users.
 
 ![icon](public/icons/icon-192.png)
 
 ## Features
 
+- **Weight log** - manual weigh-ins or automatic Apple Health sync (Stats tab), 90-day trend chart, 30-day delta
 - **Today view** - checklist of what's due today with a progress ring, live daily score, and one-tap check-off
 - **Bonus & penalty items** - one-off good actions and slips with a per-item decimal weight
   (positive or negative); the daily score sums everything you checked that day

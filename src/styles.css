@@ -413,3 +413,26 @@ input[type='time'] { color-scheme: dark; }
 .field-hint { display: block; font-style: normal; font-size: 12px; color: var(--text-dim); margin-top: 4px; }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
 .form-info { color: var(--good); font-size: 14px; margin: 8px 0 0; }
+
+/* ---------- Weight log ---------- */
+.weight-chart-wrap { margin-bottom: 10px; }
+.weight-chart { width: 100%; height: 90px; display: block; background: var(--bg-elev); border: 1px solid var(--card-border); border-radius: 12px; }
+.weight-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.weight-delta-down { color: var(--good); font-weight: 700; }
+.weight-delta-up { color: var(--danger); font-weight: 700; }
+.weight-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--card-border); font-size: 14px; }
+.weight-row .w-kg { font-weight: 700; }
+.weight-row .w-when { color: var(--text-dim); font-size: 12.5px; margin-left: auto; }
+.weight-del { padding: 4px 8px; font-size: 12px; color: var(--text-dim); }
+.weight-add { display: flex; gap: 8px; align-items: flex-end; margin-top: 10px; }
+.weight-add-btn { margin-bottom: 1px; }
+.weight-sync { border-top: 1px solid var(--card-border); padding-top: 10px; }
+.token-box {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; word-break: break-all;
+  background: var(--bg-elev); border: 1px solid var(--card-border);
+  border-radius: 10px; padding: 9px 11px; margin-top: 8px;
+}
+.weight-endpoint { font-size: 11px; word-break: break-all; }
+input[type='datetime-local'] { color-scheme: dark; }
+@media (prefers-color-scheme: light) { input[type='datetime-local'] { color-scheme: light; } }

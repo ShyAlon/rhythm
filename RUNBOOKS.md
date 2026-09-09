@@ -54,6 +54,21 @@ select cron.schedule('rhythm-dispatch', '*/5 * * * *',
 3. Update `VAPID_PUBLIC_KEY` in `src/supabaseClient.ts`, push to main (deploys automatically).
 4. Users re-enable push from the Account tab (old subscriptions die on their own; the dispatcher prunes 404/410 endpoints).
 
+## Weight ingest (Apple Health bridge)
+
+The `ingest-weight` edge function (source: `supabase/functions/ingest-weight/index.ts`,
+deployed via the Management API like `dispatch`) accepts
+`POST {token, kg, taken_at?}` from the user's iPhone Shortcut. Auth is a per-user
+token in `ingest_tokens` - no JWT, because a Shortcut cannot hold a session.
+
+- Users generate/regenerate the token in the app: Stats - Weight - Apple Health sync.
+  Regenerating invalidates the old token instantly (the row is replaced).
+- Unknown and malformed tokens both get the same 401 - no user enumeration.
+- Duplicate POSTs with the same `taken_at` dedupe on the
+  `weight_entries(user_id, taken_at)` unique index, so a re-fired Shortcut is a no-op.
+- Rotation: nothing server-side to rotate; the user regenerates their own token.
+  Revoke one user by deleting their `ingest_tokens` row.
+
 ## Free-tier ceilings to watch
 
 - Supabase free: 500 MB database, 50k MAU, 500k edge-function invocations/month
